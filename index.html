@@ -1,0 +1,1497 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ビンゴゲーム</title>
+  <meta name="description" content="3×3の盤面で駒を動かして3つ並べるビンゴゲーム">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 30%, #24243e 60%, #0f0c29 100%);
+      color: #e0e0e0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 背景のパーティクルアニメーション */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(2px 2px at 40% 70%, rgba(255, 255, 255, 0.2), transparent),
+        radial-gradient(2px 2px at 60% 20%, rgba(255, 255, 255, 0.3), transparent),
+        radial-gradient(2px 2px at 80% 50%, rgba(255, 255, 255, 0.2), transparent),
+        radial-gradient(3px 3px at 10% 80%, rgba(120, 180, 255, 0.15), transparent),
+        radial-gradient(3px 3px at 90% 10%, rgba(255, 120, 180, 0.15), transparent);
+      animation: twinkle 8s ease-in-out infinite alternate;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes twinkle {
+      0% {
+        opacity: 0.5;
+      }
+
+      100% {
+        opacity: 1;
+      }
+    }
+
+    .game-container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    /* タイトル */
+    .game-title {
+      font-size: 2.2rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #6ee7ff, #a78bfa, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.08em;
+      text-shadow: none;
+      filter: drop-shadow(0 0 20px rgba(167, 139, 250, 0.3));
+    }
+
+    /* ステータス表示 */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 32px;
+      border-radius: 50px;
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(20px);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      min-height: 56px;
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .status-bar.turn-p1 {
+      border-color: rgba(110, 231, 255, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(110, 231, 255, 0.15);
+    }
+
+    .status-bar.turn-p2 {
+      border-color: rgba(244, 114, 182, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(244, 114, 182, 0.15);
+    }
+
+    .player-indicator {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .player-indicator.player1 {
+      background: linear-gradient(135deg, #6ee7ff, #38bdf8);
+      box-shadow: 0 0 12px rgba(110, 231, 255, 0.6);
+    }
+
+    .player-indicator.player2 {
+      background: linear-gradient(135deg, #f472b6, #ec4899);
+      box-shadow: 0 0 12px rgba(244, 114, 182, 0.6);
+    }
+
+    /* ===== プレイヤーターンパネル ===== */
+    .game-main {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .player-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 16px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 2px solid rgba(255, 255, 255, 0.06);
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      min-width: 90px;
+      opacity: 0.45;
+      transform: scale(0.92);
+    }
+
+    .player-panel.active {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .player-panel.active.p1-panel {
+      border-color: rgba(110, 231, 255, 0.5);
+      background: rgba(110, 231, 255, 0.06);
+      box-shadow: 0 0 30px rgba(110, 231, 255, 0.12), 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .player-panel.active.p2-panel {
+      border-color: rgba(244, 114, 182, 0.5);
+      background: rgba(244, 114, 182, 0.06);
+      box-shadow: 0 0 30px rgba(244, 114, 182, 0.12), 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .panel-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      position: relative;
+      transition: all 0.5s ease;
+    }
+
+    .panel-icon.p1-icon {
+      background: linear-gradient(135deg, #6ee7ff 0%, #38bdf8 50%, #0ea5e9 100%);
+      box-shadow: 0 4px 12px rgba(110, 231, 255, 0.3), inset 0 2px 3px rgba(255, 255, 255, 0.3);
+    }
+
+    .panel-icon.p2-icon {
+      background: linear-gradient(135deg, #f9a8d4 0%, #f472b6 50%, #ec4899 100%);
+      box-shadow: 0 4px 12px rgba(244, 114, 182, 0.3), inset 0 2px 3px rgba(255, 255, 255, 0.3);
+    }
+
+    .panel-icon::after {
+      content: '';
+      position: absolute;
+      top: 8px;
+      left: 12px;
+      width: 12px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+      transform: rotate(-20deg);
+    }
+
+    .active .panel-icon {
+      animation: panelPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes panelPulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.1);
+      }
+    }
+
+    .panel-label {
+      font-size: 0.85rem;
+      font-weight: 900;
+      color: #6b7280;
+      transition: color 0.4s ease;
+    }
+
+    .active .panel-label {
+      color: #e5e7eb;
+    }
+
+    .panel-turn-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 10px;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .active .panel-turn-badge {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .p1-panel .panel-turn-badge {
+      background: rgba(110, 231, 255, 0.2);
+      color: #6ee7ff;
+      border: 1px solid rgba(110, 231, 255, 0.3);
+    }
+
+    .p2-panel .panel-turn-badge {
+      background: rgba(244, 114, 182, 0.2);
+      color: #f472b6;
+      border: 1px solid rgba(244, 114, 182, 0.3);
+    }
+
+    .status-text {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #d1d5db;
+    }
+
+    .phase-badge {
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .phase-badge.place {
+      background: rgba(167, 139, 250, 0.2);
+      color: #c4b5fd;
+      border: 1px solid rgba(167, 139, 250, 0.3);
+    }
+
+    .phase-badge.move {
+      background: rgba(52, 211, 153, 0.2);
+      color: #6ee7b7;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+
+    /* 駒の残り表示 */
+    .pieces-info {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      width: 100%;
+    }
+
+    .pieces-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      transition: all 0.4s ease;
+    }
+
+    .pieces-group.active-group {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .pieces-group .label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #9ca3af;
+    }
+
+    .pieces-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .pieces-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+    }
+
+    .pieces-dot.p1 {
+      background: linear-gradient(135deg, #6ee7ff, #38bdf8);
+      box-shadow: 0 0 6px rgba(110, 231, 255, 0.4);
+    }
+
+    .pieces-dot.p2 {
+      background: linear-gradient(135deg, #f472b6, #ec4899);
+      box-shadow: 0 0 6px rgba(244, 114, 182, 0.4);
+    }
+
+    .pieces-dot.used {
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: none;
+    }
+
+    /* 盤面 */
+    .board-wrapper {
+      position: relative;
+      padding: 16px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .cell {
+      width: 110px;
+      height: 110px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 2px solid rgba(255, 255, 255, 0.06);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cell:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+      transform: scale(1.03);
+    }
+
+    .cell.highlight {
+      border-color: rgba(52, 211, 153, 0.5);
+      background: rgba(52, 211, 153, 0.08);
+      animation: pulseHighlight 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulseHighlight {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.2);
+      }
+
+      50% {
+        box-shadow: 0 0 20px 4px rgba(52, 211, 153, 0.15);
+      }
+    }
+
+    .cell.selected {
+      border-color: rgba(250, 204, 21, 0.6);
+      background: rgba(250, 204, 21, 0.08);
+      box-shadow: 0 0 24px rgba(250, 204, 21, 0.15);
+    }
+
+    .cell.win-cell {
+      animation: winGlow 0.8s ease-in-out infinite alternate;
+    }
+
+    @keyframes winGlow {
+      0% {
+        box-shadow: 0 0 10px rgba(250, 204, 21, 0.3);
+        border-color: rgba(250, 204, 21, 0.4);
+      }
+
+      100% {
+        box-shadow: 0 0 30px rgba(250, 204, 21, 0.6);
+        border-color: rgba(250, 204, 21, 0.8);
+      }
+    }
+
+    /* 駒 */
+    .piece {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .piece.p1 {
+      background: linear-gradient(135deg, #6ee7ff 0%, #38bdf8 50%, #0ea5e9 100%);
+      box-shadow:
+        0 4px 20px rgba(110, 231, 255, 0.4),
+        inset 0 2px 4px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .piece.p2 {
+      background: linear-gradient(135deg, #f9a8d4 0%, #f472b6 50%, #ec4899 100%);
+      box-shadow:
+        0 4px 20px rgba(244, 114, 182, 0.4),
+        inset 0 2px 4px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .piece::after {
+      content: '';
+      position: absolute;
+      top: 12px;
+      left: 18px;
+      width: 20px;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+      transform: rotate(-20deg);
+    }
+
+    .piece.selectable {
+      cursor: pointer;
+      animation: selectablePulse 1.8s ease-in-out infinite;
+    }
+
+    /* 動かせる駒に外周リングを追加 */
+    .piece.selectable::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      right: -6px;
+      bottom: -6px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      animation: ringRotate 2.5s linear infinite;
+    }
+
+    .piece.p1.selectable::before {
+      border-color: rgba(110, 231, 255, 0.7);
+      box-shadow: 0 0 12px rgba(110, 231, 255, 0.3), inset 0 0 12px rgba(110, 231, 255, 0.15);
+    }
+
+    .piece.p2.selectable::before {
+      border-color: rgba(244, 114, 182, 0.7);
+      box-shadow: 0 0 12px rgba(244, 114, 182, 0.3), inset 0 0 12px rgba(244, 114, 182, 0.15);
+    }
+
+    /* 動かせる駒のセルにもヒント表示 */
+    .cell.movable-hint {
+      border-color: rgba(250, 204, 21, 0.3);
+      background: rgba(250, 204, 21, 0.04);
+    }
+
+    .cell.movable-hint::after {
+      content: '▼';
+      position: absolute;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.55rem;
+      color: rgba(250, 204, 21, 0.6);
+      animation: arrowBounce 1.2s ease-in-out infinite;
+    }
+
+    @keyframes arrowBounce {
+
+      0%,
+      100% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 0.4;
+      }
+
+      50% {
+        transform: translateX(-50%) translateY(3px);
+        opacity: 0.8;
+      }
+    }
+
+    @keyframes selectablePulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+        filter: brightness(1);
+      }
+
+      50% {
+        transform: scale(1.08);
+        filter: brightness(1.15);
+      }
+    }
+
+    @keyframes ringRotate {
+      0% {
+        border-top-color: transparent;
+      }
+
+      25% {
+        border-top-color: transparent;
+      }
+
+      50% {}
+
+      75% {
+        border-bottom-color: transparent;
+      }
+
+      100% {
+        border-top-color: transparent;
+      }
+    }
+
+    .piece.selected-piece {
+      transform: scale(1.15);
+      filter: brightness(1.2);
+    }
+
+    .piece.p1.selected-piece {
+      box-shadow:
+        0 0 30px rgba(110, 231, 255, 0.7),
+        0 0 60px rgba(110, 231, 255, 0.3),
+        inset 0 2px 4px rgba(255, 255, 255, 0.3);
+    }
+
+    .piece.p2.selected-piece {
+      box-shadow:
+        0 0 30px rgba(244, 114, 182, 0.7),
+        0 0 60px rgba(244, 114, 182, 0.3),
+        inset 0 2px 4px rgba(255, 255, 255, 0.3);
+    }
+
+    /* 配置時の登場アニメーション */
+    @keyframes placeIn {
+      0% {
+        transform: scale(0) rotate(-180deg);
+        opacity: 0;
+      }
+
+      60% {
+        transform: scale(1.2) rotate(10deg);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+      }
+    }
+
+    .piece.placing {
+      animation: placeIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* 勝利バナー（インライン表示） */
+    .win-banner {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 28px;
+      border-radius: 50px;
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(20px);
+      border: 2px solid rgba(250, 204, 21, 0.4);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 24px rgba(250, 204, 21, 0.15);
+      transform: translateY(-10px);
+      opacity: 0;
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .win-banner.show {
+      display: flex;
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .win-banner.p1-win {
+      border-color: rgba(110, 231, 255, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 24px rgba(110, 231, 255, 0.2);
+    }
+
+    .win-banner.p2-win {
+      border-color: rgba(244, 114, 182, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 24px rgba(244, 114, 182, 0.2);
+    }
+
+    .win-banner-emoji {
+      font-size: 1.6rem;
+      animation: winBounce 1s ease-in-out infinite;
+    }
+
+    @keyframes winBounce {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.2);
+      }
+    }
+
+    .win-banner-text {
+      font-size: 1.1rem;
+      font-weight: 900;
+    }
+
+    .win-banner.p1-win .win-banner-text {
+      background: linear-gradient(135deg, #6ee7ff, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .win-banner.p2-win .win-banner-text {
+      background: linear-gradient(135deg, #f472b6, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .win-banner-sub {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      font-weight: 700;
+    }
+
+    /* ===== アクションコントロール ===== */
+    .action-controls {
+      display: flex;
+      gap: 14px;
+      align-items: stretch;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .action-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 16px 12px;
+      border-radius: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      font-family: 'Noto Sans JP', sans-serif;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(12px);
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .action-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 16px;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+    }
+
+    .action-btn .action-icon {
+      font-size: 1.6rem;
+      line-height: 1;
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .action-btn .action-label {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      transition: color 0.3s ease;
+    }
+
+    .action-btn:hover:not(:disabled) {
+      transform: translateY(-3px) scale(1.04);
+    }
+
+    .action-btn:hover:not(:disabled) .action-icon {
+      transform: scale(1.15);
+    }
+
+    .action-btn:active:not(:disabled) {
+      transform: translateY(0) scale(0.97);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+    }
+
+    /* 一手戻るボタン */
+    .undo-btn {
+      border-color: rgba(250, 204, 21, 0.25);
+    }
+
+    .undo-btn .action-label {
+      color: rgba(250, 204, 21, 0.7);
+    }
+
+    .undo-btn::before {
+      background: linear-gradient(135deg, rgba(250, 204, 21, 0.12), rgba(250, 204, 21, 0.03));
+    }
+
+    .undo-btn:hover:not(:disabled) {
+      border-color: rgba(250, 204, 21, 0.55);
+      box-shadow: 0 8px 28px rgba(250, 204, 21, 0.15), 0 0 0 1px rgba(250, 204, 21, 0.1);
+    }
+
+    .undo-btn:hover:not(:disabled)::before {
+      opacity: 1;
+    }
+
+    .undo-btn:hover:not(:disabled) .action-label {
+      color: #facc15;
+    }
+
+    /* パスボタン */
+    .pass-btn {
+      border-color: rgba(167, 139, 250, 0.25);
+    }
+
+    .pass-btn .action-label {
+      color: rgba(167, 139, 250, 0.7);
+    }
+
+    .pass-btn::before {
+      background: linear-gradient(135deg, rgba(167, 139, 250, 0.12), rgba(167, 139, 250, 0.03));
+    }
+
+    .pass-btn:hover:not(:disabled) {
+      border-color: rgba(167, 139, 250, 0.55);
+      box-shadow: 0 8px 28px rgba(167, 139, 250, 0.15), 0 0 0 1px rgba(167, 139, 250, 0.1);
+    }
+
+    .pass-btn:hover:not(:disabled)::before {
+      opacity: 1;
+    }
+
+    .pass-btn:hover:not(:disabled) .action-label {
+      color: #a78bfa;
+    }
+
+    /* リスタートボタン */
+    .restart-btn {
+      border-color: rgba(52, 211, 153, 0.25);
+    }
+
+    .restart-btn .action-label {
+      color: rgba(52, 211, 153, 0.7);
+    }
+
+    .restart-btn::before {
+      background: linear-gradient(135deg, rgba(52, 211, 153, 0.12), rgba(52, 211, 153, 0.03));
+    }
+
+    .restart-btn:hover:not(:disabled) {
+      border-color: rgba(52, 211, 153, 0.55);
+      box-shadow: 0 8px 28px rgba(52, 211, 153, 0.15), 0 0 0 1px rgba(52, 211, 153, 0.1);
+    }
+
+    .restart-btn:hover:not(:disabled)::before {
+      opacity: 1;
+    }
+
+    .restart-btn:hover:not(:disabled) .action-label {
+      color: #34d399;
+    }
+
+    .restart-btn:hover:not(:disabled) .action-icon {
+      animation: spinOnce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes spinOnce {
+      0% { transform: rotate(0deg) scale(1.15); }
+      100% { transform: rotate(360deg) scale(1.15); }
+    }
+
+    /* 勝利時の紙吹雪 */
+    .confetti-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 99;
+      overflow: hidden;
+    }
+
+    .confetti {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      top: -20px;
+      animation: confettiFall linear forwards;
+    }
+
+    @keyframes confettiFall {
+      0% {
+        transform: translateY(0) rotate(0deg) scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translateY(100vh) rotate(720deg) scale(0.5);
+        opacity: 0;
+      }
+    }
+
+    /* レスポンシブ */
+    @media (max-width: 600px) {
+      .game-title {
+        font-size: 1.6rem;
+      }
+
+      .game-main {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .player-panel {
+        flex-direction: row;
+        min-width: auto;
+        padding: 10px 20px;
+        gap: 12px;
+      }
+
+      .cell {
+        width: 90px;
+        height: 90px;
+      }
+
+      .piece {
+        width: 56px;
+        height: 56px;
+      }
+
+      .pieces-info {
+        gap: 16px;
+      }
+
+      .status-bar {
+        padding: 10px 20px;
+      }
+
+      .action-controls {
+        max-width: 320px;
+      }
+
+      .action-btn {
+        padding: 12px 8px;
+      }
+
+      .action-btn .action-icon {
+        font-size: 1.35rem;
+      }
+
+      .action-btn .action-label {
+        font-size: 0.72rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="game-container">
+    <h1 class="game-title" id="game-title">ビンゴゲーム</h1>
+
+    <div class="status-bar" id="status-bar">
+      <div class="player-indicator player1" id="player-indicator"></div>
+      <span class="status-text" id="status-text">先攻のターン</span>
+      <span class="phase-badge place" id="phase-badge">配置</span>
+    </div>
+
+    <!-- 勝利バナー -->
+    <div class="win-banner" id="win-banner">
+      <span class="win-banner-emoji">🎉</span>
+      <span class="win-banner-text" id="win-banner-text">先攻の勝ち！</span>
+      <span class="win-banner-sub">3つ並べました！</span>
+    </div>
+
+    <div class="pieces-info">
+      <div class="pieces-group">
+        <span class="label">先攻</span>
+        <div class="pieces-dots" id="p1-dots">
+          <div class="pieces-dot p1" data-index="0"></div>
+          <div class="pieces-dot p1" data-index="1"></div>
+          <div class="pieces-dot p1" data-index="2"></div>
+        </div>
+      </div>
+      <div class="pieces-group">
+        <span class="label">後攻</span>
+        <div class="pieces-dots" id="p2-dots">
+          <div class="pieces-dot p2" data-index="0"></div>
+          <div class="pieces-dot p2" data-index="1"></div>
+          <div class="pieces-dot p2" data-index="2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-main">
+      <!-- 先攻パネル -->
+      <div class="player-panel p1-panel active" id="p1-panel">
+        <div class="panel-icon p1-icon"></div>
+        <span class="panel-label">先攻</span>
+        <span class="panel-turn-badge">YOUR TURN</span>
+      </div>
+
+      <div class="board-wrapper">
+        <div class="board" id="board">
+          <div class="cell" data-index="0" id="cell-0"></div>
+          <div class="cell" data-index="1" id="cell-1"></div>
+          <div class="cell" data-index="2" id="cell-2"></div>
+          <div class="cell" data-index="3" id="cell-3"></div>
+          <div class="cell" data-index="4" id="cell-4"></div>
+          <div class="cell" data-index="5" id="cell-5"></div>
+          <div class="cell" data-index="6" id="cell-6"></div>
+          <div class="cell" data-index="7" id="cell-7"></div>
+          <div class="cell" data-index="8" id="cell-8"></div>
+        </div>
+      </div>
+
+      <!-- 後攻パネル -->
+      <div class="player-panel p2-panel" id="p2-panel">
+        <div class="panel-icon p2-icon"></div>
+        <span class="panel-label">後攻</span>
+        <span class="panel-turn-badge">YOUR TURN</span>
+      </div>
+    </div>
+
+    <div class="action-controls">
+      <button class="action-btn undo-btn" id="undo-btn" onclick="undoMove()" disabled>
+        <span class="action-icon">↩️</span>
+        <span class="action-label">一手戻る</span>
+      </button>
+      <button class="action-btn pass-btn" id="pass-btn" onclick="passTurn()">
+        <span class="action-icon">⏭️</span>
+        <span class="action-label">パス</span>
+      </button>
+      <button class="action-btn restart-btn" id="bottom-restart" onclick="resetGame()">
+        <span class="action-icon">🔄</span>
+        <span class="action-label">リスタート</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 勝利バナー（インライン） -->
+  <!-- バナーはgame-container内に移動 -->
+
+  <!-- 紙吹雪コンテナ -->
+  <div class="confetti-container" id="confetti-container"></div>
+
+  <script>
+    // ゲーム状態
+    const state = {
+      board: Array(9).fill(null),   // null, 1, 2
+      currentPlayer: 1,             // 1: 先攻, 2: 後攻
+      placedCount: { 1: 0, 2: 0 }, // 各プレイヤーの配置済み駒数
+      phase: 'place',               // 'place' or 'move'
+      selectedCell: null,           // 移動フェーズで選択中のセルIndex
+      gameOver: false,
+      winLine: null
+    };
+
+    // 履歴スタック（一手戻る用）
+    const history = [];
+
+    /**
+     * 現在のゲーム状態のスナップショットを保存
+     */
+    function saveSnapshot() {
+      history.push({
+        board: [...state.board],
+        currentPlayer: state.currentPlayer,
+        placedCount: { 1: state.placedCount[1], 2: state.placedCount[2] },
+        phase: state.phase,
+        selectedCell: state.selectedCell,
+        gameOver: state.gameOver,
+        winLine: state.winLine ? [...state.winLine] : null
+      });
+      updateUndoButton();
+    }
+
+    /**
+     * 一手戻る
+     */
+    function undoMove() {
+      if (history.length === 0) return;
+
+      const snapshot = history.pop();
+
+      // 状態を復元
+      state.board = snapshot.board;
+      state.currentPlayer = snapshot.currentPlayer;
+      state.placedCount = { 1: snapshot.placedCount[1], 2: snapshot.placedCount[2] };
+      state.phase = snapshot.phase;
+      state.selectedCell = snapshot.selectedCell;
+      state.gameOver = snapshot.gameOver;
+      state.winLine = snapshot.winLine;
+
+      // 盤面を再描画
+      renderFullBoard();
+      updatePieceDots();
+      updateStatus();
+
+      // 選択状態とハイライトを復元
+      if (state.selectedCell !== null) {
+        updateBoardHighlights();
+      } else {
+        clearHighlights();
+        updateSelectablePieces();
+      }
+
+      updateUndoButton();
+      updatePassButton();
+
+      // 勝利バナーを更新
+      if (!state.gameOver) {
+        hideWinBanner();
+      }
+    }
+
+    /**
+     * 盤面全体を再描画
+     */
+    function renderFullBoard() {
+      cells.forEach((cell, i) => {
+        cell.innerHTML = '';
+        cell.classList.remove('selected', 'highlight', 'win-cell', 'movable-hint');
+        if (state.board[i] !== null) {
+          renderPiece(i, state.board[i], false);
+        }
+      });
+    }
+
+    /**
+     * 戻るボタンの有効/無効を更新
+     */
+    function updateUndoButton() {
+      const undoBtn = document.getElementById('undo-btn');
+      undoBtn.disabled = history.length === 0;
+    }
+
+    // ビンゴ判定ライン
+    const WIN_LINES = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // 横
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // 縦
+      [0, 4, 8], [2, 4, 6]             // 斜め
+    ];
+
+    // DOM要素
+    const cells = document.querySelectorAll('.cell');
+    const statusBar = document.getElementById('status-bar');
+    const statusText = document.getElementById('status-text');
+    const playerIndicator = document.getElementById('player-indicator');
+    const phaseBadge = document.getElementById('phase-badge');
+    const p1Panel = document.getElementById('p1-panel');
+    const p2Panel = document.getElementById('p2-panel');
+    const winBanner = document.getElementById('win-banner');
+    const winBannerText = document.getElementById('win-banner-text');
+    const confettiContainer = document.getElementById('confetti-container');
+
+    // 各セルにクリックイベント
+    cells.forEach(cell => {
+      cell.addEventListener('click', () => handleCellClick(parseInt(cell.dataset.index)));
+    });
+
+    /**
+     * セルクリック処理
+     */
+    function handleCellClick(index) {
+      if (state.gameOver) return;
+
+      if (state.phase === 'place') {
+        handlePlace(index);
+      } else {
+        handleMove(index);
+      }
+    }
+
+    /**
+     * 配置フェーズ
+     */
+    function handlePlace(index) {
+      // 既に駒がある場所には置けない
+      if (state.board[index] !== null) return;
+
+      // 操作前の状態を保存
+      saveSnapshot();
+
+      // 駒を配置
+      state.board[index] = state.currentPlayer;
+      state.placedCount[state.currentPlayer]++;
+
+      // UIに反映
+      renderPiece(index, state.currentPlayer, true);
+      updatePieceDots();
+
+      // 勝利判定
+      if (checkWin(state.currentPlayer)) {
+        handleWin(state.currentPlayer);
+        return;
+      }
+
+      // フェーズ判定: 両者とも3つ置いたら移動フェーズへ
+      if (state.placedCount[1] === 3 && state.placedCount[2] === 3) {
+        state.phase = 'move';
+      }
+
+      // ターン交代
+      switchPlayer();
+      updateStatus();
+      updateSelectablePieces();
+    }
+
+    /**
+     * 移動フェーズ
+     */
+    function handleMove(index) {
+      // 駒が選択されていない場合
+      if (state.selectedCell === null) {
+        // 自分の駒をクリックした場合のみ選択可能
+        if (state.board[index] === state.currentPlayer) {
+          state.selectedCell = index;
+          updateBoardHighlights();
+          updateStatus();
+        }
+        return;
+      }
+
+      // 既に選択中の駒を再クリック → 選択解除
+      if (index === state.selectedCell) {
+        state.selectedCell = null;
+        clearHighlights();
+        updateSelectablePieces();
+        updateStatus();
+        return;
+      }
+
+      // 別の自分の駒をクリック → 選択変更
+      if (state.board[index] === state.currentPlayer) {
+        state.selectedCell = index;
+        updateBoardHighlights();
+        updateStatus();
+        return;
+      }
+
+      // 空きセルをクリック → 移動
+      if (state.board[index] === null) {
+        // 操作前の状態を保存
+        saveSnapshot();
+
+        // 駒を移動
+        const fromIndex = state.selectedCell;
+        state.board[fromIndex] = null;
+        state.board[index] = state.currentPlayer;
+        state.selectedCell = null;
+
+        // UI更新
+        removePiece(fromIndex);
+        renderPiece(index, state.currentPlayer, true);
+        clearHighlights();
+
+        // 勝利判定
+        if (checkWin(state.currentPlayer)) {
+          handleWin(state.currentPlayer);
+          return;
+        }
+
+        // ターン交代
+        switchPlayer();
+        updateStatus();
+        updateSelectablePieces();
+      }
+    }
+
+    /**
+     * 勝利判定
+     */
+    function checkWin(player) {
+      for (const line of WIN_LINES) {
+        if (line.every(i => state.board[i] === player)) {
+          state.winLine = line;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * 勝利処理
+     */
+    function handleWin(player) {
+      state.gameOver = true;
+
+      // 勝利ラインをハイライト
+      if (state.winLine) {
+        state.winLine.forEach(i => {
+          cells[i].classList.add('win-cell');
+        });
+      }
+
+      // 勝利バナー表示
+      showWinBanner(player);
+
+      // 紙吹雪
+      launchConfetti(player);
+
+      // ボタン状態を更新
+      updateUndoButton();
+      updatePassButton();
+    }
+
+    /**
+     * 勝利バナーを表示
+     */
+    function showWinBanner(player) {
+      const playerName = player === 1 ? '先攻' : '後攻';
+      winBannerText.textContent = `🏆 ${playerName}の勝ち！`;
+      winBanner.className = `win-banner show ${player === 1 ? 'p1-win' : 'p2-win'}`;
+
+      // ステータスバーも勝利表示に更新
+      statusText.textContent = `${playerName}の勝ち！`;
+      phaseBadge.textContent = '決着';
+      phaseBadge.className = 'phase-badge move';
+    }
+
+    /**
+     * 勝利バナーを非表示
+     */
+    function hideWinBanner() {
+      winBanner.className = 'win-banner';
+    }
+
+    /**
+     * 紙吹雪エフェクト
+     */
+    function launchConfetti(player) {
+      const colors = player === 1
+        ? ['#6ee7ff', '#38bdf8', '#0ea5e9', '#a78bfa', '#ffffff']
+        : ['#f472b6', '#ec4899', '#f9a8d4', '#a78bfa', '#ffffff'];
+
+      for (let i = 0; i < 60; i++) {
+        setTimeout(() => {
+          const confetti = document.createElement('div');
+          confetti.className = 'confetti';
+          confetti.style.left = Math.random() * 100 + '%';
+          confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+          confetti.style.width = (Math.random() * 8 + 6) + 'px';
+          confetti.style.height = (Math.random() * 8 + 6) + 'px';
+          confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+          confetti.style.animationDelay = '0s';
+          confettiContainer.appendChild(confetti);
+
+          confetti.addEventListener('animationend', () => confetti.remove());
+        }, i * 30);
+      }
+    }
+
+    /**
+     * ターン交代
+     */
+    function switchPlayer() {
+      state.currentPlayer = state.currentPlayer === 1 ? 2 : 1;
+    }
+
+    /**
+     * パス（何もせず手番を交代）
+     */
+    function passTurn() {
+      if (state.gameOver) return;
+
+      // 操作前の状態を保存
+      saveSnapshot();
+
+      // 選択中の駒を解除
+      state.selectedCell = null;
+      clearHighlights();
+
+      // ターン交代
+      switchPlayer();
+      updateStatus();
+      updateSelectablePieces();
+      updatePassButton();
+    }
+
+    /**
+     * パスボタンの有効/無効を更新
+     */
+    function updatePassButton() {
+      const passBtn = document.getElementById('pass-btn');
+      passBtn.disabled = state.gameOver;
+    }
+
+    /**
+     * ステータスUI更新
+     */
+    function updateStatus() {
+      const playerName = state.currentPlayer === 1 ? '先攻' : '後攻';
+
+      // ステータスバーの色切替
+      playerIndicator.className = `player-indicator ${state.currentPlayer === 1 ? 'player1' : 'player2'}`;
+      statusBar.className = `status-bar ${state.currentPlayer === 1 ? 'turn-p1' : 'turn-p2'}`;
+
+      // プレイヤーパネルの切替
+      if (state.currentPlayer === 1) {
+        p1Panel.classList.add('active');
+        p2Panel.classList.remove('active');
+      } else {
+        p1Panel.classList.remove('active');
+        p2Panel.classList.add('active');
+      }
+
+      // 駒残り表示のアクティブ切替
+      document.querySelectorAll('.pieces-group').forEach((g, i) => {
+        g.classList.toggle('active-group', (i === 0 && state.currentPlayer === 1) || (i === 1 && state.currentPlayer === 2));
+      });
+
+      if (state.phase === 'place') {
+        statusText.textContent = `${playerName}のターン — 駒を置いてください`;
+        phaseBadge.textContent = '配置';
+        phaseBadge.className = 'phase-badge place';
+      } else {
+        if (state.selectedCell !== null) {
+          statusText.textContent = `${playerName}のターン — 移動先を選んでください`;
+        } else {
+          statusText.textContent = `${playerName}のターン — 動かす駒を選んでください`;
+        }
+        phaseBadge.textContent = '移動';
+        phaseBadge.className = 'phase-badge move';
+      }
+    }
+
+    /**
+     * 盤面に駒を描画
+     */
+    function renderPiece(index, player, animate = false) {
+      const cell = cells[index];
+      cell.innerHTML = '';
+      const piece = document.createElement('div');
+      piece.className = `piece p${player}${animate ? ' placing' : ''}`;
+      cell.appendChild(piece);
+    }
+
+    /**
+     * 駒を削除
+     */
+    function removePiece(index) {
+      cells[index].innerHTML = '';
+    }
+
+    /**
+     * 残り駒のドット表示を更新
+     */
+    function updatePieceDots() {
+      for (let p = 1; p <= 2; p++) {
+        const dotsContainer = document.getElementById(`p${p}-dots`);
+        const dots = dotsContainer.querySelectorAll('.pieces-dot');
+        dots.forEach((dot, i) => {
+          if (i < state.placedCount[p]) {
+            dot.classList.add('used');
+          } else {
+            dot.classList.remove('used');
+          }
+        });
+      }
+    }
+
+    /**
+     * 移動フェーズ時の駒のハイライト
+     */
+    function updateBoardHighlights() {
+      clearHighlights();
+
+      if (state.selectedCell !== null) {
+        // 選択中のセルをハイライト
+        cells[state.selectedCell].classList.add('selected');
+        const piece = cells[state.selectedCell].querySelector('.piece');
+        if (piece) piece.classList.add('selected-piece');
+
+        // 空きセルをハイライト（移動先候補）
+        state.board.forEach((val, i) => {
+          if (val === null) {
+            cells[i].classList.add('highlight');
+          }
+        });
+      }
+    }
+
+    /**
+     * 移動可能な駒にアニメーションを付与
+     */
+    function updateSelectablePieces() {
+      // 全pieceからselectableクラスを削除
+      document.querySelectorAll('.piece').forEach(p => p.classList.remove('selectable'));
+      // 全セルからmovable-hintを削除
+      cells.forEach(c => c.classList.remove('movable-hint'));
+
+      if (state.phase === 'move' && !state.gameOver && state.selectedCell === null) {
+        state.board.forEach((val, i) => {
+          if (val === state.currentPlayer) {
+            const piece = cells[i].querySelector('.piece');
+            if (piece) piece.classList.add('selectable');
+            cells[i].classList.add('movable-hint');
+          }
+        });
+      }
+    }
+
+    /**
+     * ハイライトをクリア
+     */
+    function clearHighlights() {
+      cells.forEach(cell => {
+        cell.classList.remove('selected', 'highlight', 'movable-hint');
+        const piece = cell.querySelector('.piece');
+        if (piece) piece.classList.remove('selected-piece', 'selectable');
+      });
+    }
+
+    /**
+     * ゲームリセット
+     */
+    function resetGame() {
+      state.board = Array(9).fill(null);
+      state.currentPlayer = 1;
+      state.placedCount = { 1: 0, 2: 0 };
+      state.phase = 'place';
+      state.selectedCell = null;
+      state.gameOver = false;
+      state.winLine = null;
+
+      // 履歴もクリア
+      history.length = 0;
+
+      // UIリセット
+      cells.forEach(cell => {
+        cell.innerHTML = '';
+        cell.classList.remove('selected', 'highlight', 'win-cell', 'movable-hint');
+      });
+
+      hideWinBanner();
+      confettiContainer.innerHTML = '';
+
+      // パネルリセット
+      p1Panel.classList.add('active');
+      p2Panel.classList.remove('active');
+
+      updatePieceDots();
+      updateStatus();
+      updateUndoButton();
+      updatePassButton();
+    }
+
+    // 初期表示
+    updateStatus();
+  </script>
+</body>
+
+</html>
